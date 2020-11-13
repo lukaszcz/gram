@@ -1,6 +1,7 @@
 module Main where
 
 import Data.DList
+import Proof
 
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main = putStrLn "GRAM prover"
