@@ -39,14 +39,14 @@ refineFirst g p =
       [] -> [p]
 
 -- | Delayed terms
-data DTerm t a = DTerm {
+data DTerm a b = DTerm {
       dtSize :: !Int
     , dtHolesNum :: !Int
-    , dtHoles :: ![a]
-    , dtFill :: [t a] -> t a
+    , dtHoles :: [b]
+    , dtFill :: [a] -> a
     }
 
-instance Term (DTerm t) a where
+instance Term (DTerm a) b where
     holes = dtHoles
     holesNum = dtHolesNum
     fill p l = DTerm {
@@ -73,8 +73,9 @@ instance Term (DTerm t) a where
         where
           newHoles = dtHoles x
 
-compareDTerm :: DTerm t a -> DTerm t a -> Ordering
-compareDTerm x y =
+-- | Priority comparison function.
+compareDTermPrio :: DTerm a b -> DTerm a b -> Ordering
+compareDTermPrio x y =
     if dtHolesNum x == 0 then
         if dtHolesNum y > 0 then
             LT
@@ -83,8 +84,8 @@ compareDTerm x y =
     else
         compare (4 * dtHolesNum x + dtSize x) (4 * dtHolesNum y + dtSize y)
 
-instance Eq (DTerm t a) where
-    x == y = compareDTerm x y == EQ
+instance Eq (DTerm a b) where
+    x == y = compareDTermPrio x y == EQ
 
-instance Ord (DTerm t a) where
-    compare = compareDTerm
+instance Ord (DTerm a b) where
+    compare = compareDTermPrio

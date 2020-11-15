@@ -16,7 +16,7 @@ extra-source-files:  CHANGELOG.md
 
 executable gram
   main-is:             Main.hs
-  other-modules:       Utils Search Grammar Prop
+  other-modules:       Utils Search Grammar Prop Prop.Search
   -- other-extensions:
   build-depends:       base >=4.12,
                        dlist, pqueue, containers
