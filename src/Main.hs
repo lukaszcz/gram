@@ -1,7 +1,9 @@
 module Main where
 
 import Data.DList
-import Proof
+import Search
+import Grammar
+import Prop
 
 main :: IO ()
 main = putStrLn "GRAM prover"
