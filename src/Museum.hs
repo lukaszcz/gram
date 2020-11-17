@@ -22,3 +22,19 @@ instance Proof a => Proof (ProofStruct a) where
     prune p = do
       x <- prunep (sigp p) (proof p)
       return $ ProofStruct (sigp p) x
+
+class TermSig a where
+    tVar :: Int -> a
+    tApp :: a -> [a] -> a
+    tProj :: Int -> a -> a
+    tLam :: a -> a
+    tCase :: [a] -> a
+    tLet :: a -> a -> a
+
+instance TermSig Term where
+    tVar = Var
+    tApp = App
+    tProj = Proj
+    tLam = Lam
+    tCase = Case
+    tLet = Let

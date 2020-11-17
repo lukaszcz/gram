@@ -4,33 +4,40 @@ module Prop where
 -}
 
 data Formula = Atom Int
+             | Impl [Formula] Formula
              | And [Formula]
              | Or [Formula]
-             | Impl [Formula] Formula
 
--- | Proof terms in de Bruijn representation
-data Term = Var Int
-          | App Term [Term]
-          | Proj Int Term
-          | Lam Term
-          | Case [Term]
-          -- ^ 'case t : A_1 \/ .. \/ A_n of x_1 => t_1 | .. | x_n => t_n' -->
-          -- 'Case [Lam t_1, .., Lam t_n]'
-          | Let Term Term
-          -- ^ 'let x = t in u' --> 'Let t (Lam u)'
+-- | Proof terms in zero-based de Bruijn representation
+data ProofTerm = Var Int
+               | App ProofTerm [ProofTerm]
+               | Lam ProofTerm
+               | Proj Int ProofTerm
+               | Tuple [ProofTerm]
+               | Case [ProofTerm]
+               -- ^ 'case t : A_1 \/ .. \/ A_n of x_1 => t_1 | .. | x_n => t_n' -->
+               -- 'Case [t_1, .., t_n]'
+               | Inj Int ProofTerm
+               | Let ProofTerm ProofTerm
+               -- ^ 'let x = t in u' --> 'Let t u'
 
-class TermSig a where
-    tVar :: Int -> a
-    tApp :: a -> [a] -> a
-    tProj :: Int -> a -> a
-    tLam :: a -> a
-    tCase :: [a] -> a
-    tLet :: a -> a -> a
+mapFormula :: (Formula -> Formula) -> Formula -> Formula
+mapFormula f (Atom i) = f (Atom i)
+mapFormula f (Impl l x) = f (Impl (map (mapFormula f) l) (mapFormula f x))
+mapFormula f (And l) = f (And (map (mapFormula f) l))
+mapFormula f (Or l) = f (Or (map (mapFormula f) l))
 
-instance TermSig Term where
-    tVar = Var
-    tApp = App
-    tProj = Proj
-    tLam = Lam
-    tCase = Case
-    tLet = Let
+compressFormulaRoot :: Formula -> Formula
+compressFormulaRoot (Impl l1 (Impl l2 x)) = compressFormulaRoot (Impl (l1 ++ l2) x)
+compressFormulaRoot (And l) = And (concatMap expand l)
+    where
+      expand (And l) = concatMap expand l
+      expand x = [x]
+compressFormulaRoot (Or l) = Or (concatMap expand l)
+    where
+      expand (Or l) = concatMap expand l
+      expand x = [x]
+compressFormulaRoot x = x
+
+compressFormula :: Formula -> Formula
+compressFormula = mapFormula compressFormulaRoot

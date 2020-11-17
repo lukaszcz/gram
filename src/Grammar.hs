@@ -14,7 +14,9 @@ class Term t a where
     -- | Number of holes.
     holesNum :: t a -> Int
     holesNum p = length (holes p)
-    -- | Fills the holes with the given proof terms.
+    -- | Fills the holes with the given proof terms. Assumption: the
+    -- number of terms provided is less or equal to the number of
+    -- holes.
     fill :: t a -> [t a] -> t a
     -- | 'fillFirst p x' Fills the first hole in 'p' with 'x'
     fillFirst :: t a -> t a -> t a
@@ -38,7 +40,9 @@ refineFirst g p =
       (h:_) -> map (fillFirst p) (expand g h)
       [] -> [p]
 
--- | Delayed terms
+-- | Delayed terms: terms represented by a list of holes and a
+-- function which when supplied with the concrete terms for the holes
+-- returns a concrete term representation of the delayed term.
 data DTerm a b = DTerm {
       dtSize :: !Int
     , dtHolesNum :: !Int
@@ -50,7 +54,7 @@ instance Term (DTerm a) b where
     holes = dtHoles
     holesNum = dtHolesNum
     fill p l = DTerm {
-                 dtSize = dtSize p + filledHolesNum
+                 dtSize = dtSize p + sum (map dtSize l)
                , dtHolesNum = dtHolesNum p + length newHoles - filledHolesNum
                , dtHoles = newHoles ++ drop filledHolesNum (dtHoles p)
                , dtFill =
@@ -62,7 +66,7 @@ instance Term (DTerm a) b where
           newHoles = concatMap dtHoles l
           filledHolesNum = length l
     fillFirst p x = DTerm {
-                      dtSize = dtSize p + 1
+                      dtSize = dtSize p + dtSize x
                     , dtHolesNum = dtHolesNum p + length newHoles - 1
                     , dtHoles = newHoles ++ tail (dtHoles p)
                     , dtFill =
@@ -73,7 +77,7 @@ instance Term (DTerm a) b where
         where
           newHoles = dtHoles x
 
--- | Priority comparison function.
+-- | Priority comparison on delayed terms.
 compareDTermPrio :: DTerm a b -> DTerm a b -> Ordering
 compareDTermPrio x y =
     if dtHolesNum x == 0 then
