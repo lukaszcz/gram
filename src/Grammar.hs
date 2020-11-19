@@ -43,14 +43,15 @@ refineFirst g p =
 -- | Delayed terms: terms represented by a list of holes and a
 -- function which when supplied with the concrete terms for the holes
 -- returns a concrete term representation of the delayed term.
-data DTerm a b = DTerm {
+data DTerm c a b = DTerm {
       dtSize :: !Int
     , dtHolesNum :: !Int
     , dtHoles :: [b]
     , dtFill :: [a] -> a
+    , dtConstraints :: c
     }
 
-instance Term (DTerm a) b where
+instance Semigroup c => Term (DTerm c a) b where
     holes = dtHoles
     holesNum = dtHolesNum
     fill p l = DTerm {
@@ -61,6 +62,7 @@ instance Term (DTerm a) b where
                    \l' ->
                        let ls = group (map dtHolesNum l) l'
                        in dtFill p (map (\(x,y) -> dtFill x y) (zip l ls))
+               , dtConstraints = foldr (<>) (dtConstraints p) (map dtConstraints l)
                }
         where
           newHoles = concatMap dtHoles l
@@ -73,12 +75,13 @@ instance Term (DTerm a) b where
                         \l' ->
                             let (l1, l2) = splitAt (dtHolesNum x) l'
                             in dtFill p (dtFill x l1 : l2)
+                    , dtConstraints = dtConstraints p <> dtConstraints x
                     }
         where
           newHoles = dtHoles x
 
 -- | Priority comparison on delayed terms.
-compareDTermPrio :: DTerm a b -> DTerm a b -> Ordering
+compareDTermPrio :: DTerm c a b -> DTerm c a b -> Ordering
 compareDTermPrio x y =
     if dtHolesNum x == 0 then
         if dtHolesNum y > 0 then
@@ -88,8 +91,8 @@ compareDTermPrio x y =
     else
         compare (4 * dtHolesNum x + dtSize x) (4 * dtHolesNum y + dtSize y)
 
-instance Eq (DTerm a b) where
+instance Eq (DTerm c a b) where
     x == y = compareDTermPrio x y == EQ
 
-instance Ord (DTerm a b) where
+instance Ord (DTerm c a b) where
     compare = compareDTermPrio

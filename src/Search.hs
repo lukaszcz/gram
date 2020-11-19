@@ -18,7 +18,7 @@ class Proof g a where
     -- argument is filtered-out by the post-processing.
     prune :: g -> a -> Maybe a
 
-searchq :: Ord a => Proof g a => g -> PQueue.MinQueue a -> [a]
+searchq :: (Ord a, Proof g a) => g -> PQueue.MinQueue a -> [a]
 searchq g q =
     case PQueue.minView q of
       Just (p, q') ->
@@ -31,5 +31,5 @@ searchq g q =
       Nothing ->
           []
 
-search :: Ord a => Proof g a => g -> a -> [a]
+search :: (Ord a, Proof g a) => g -> a -> [a]
 search g p = searchq g (PQueue.insert p PQueue.empty)

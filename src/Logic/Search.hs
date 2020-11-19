@@ -1,126 +1,99 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
-module Prop.Search where
+module Logic.Search where
 {-
-   Intuitionistic propositional logic: proof search
+   Generic proof search based on IPL proof search
 -}
 
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
-import qualified Grammar
-import Prop
+import Data.Maybe
+import qualified Search
+import Grammar
+import Logic
 
-data Eliminator = EApp | EProj Int
-
--- | Eliminator chain
-data Elim = Elim {
-      -- | The target is an atom or a disjunction
-      target :: Formula
-    , subgoals :: [Formula]
-    , var :: Int
-    , elims :: [Eliminator] -- TODO: optimisation - empty list means only EApp
+data SearchOpts = SearchOpts {
+      soRefineAll :: Bool
     }
 
--- | 'mkElim v tau' creates the list of eliminator chains associated
--- with the declaration (Var v) : tau
-mkElim :: Int -> Formula -> [Elim]
-mkElim v tau = mkelim tau [] []
-    where
-      mkelim :: Formula -> [Formula] -> [Eliminator] -> [Elim]
-      mkelim tau@(Atom _) gs es = [Elim { target = tau
-                                      , subgoals = reverse gs
-                                      , var = v
-                                      , elims = reverse es }]
-      mkelim tau@(Or _) gs es = [Elim { target = tau
-                                    , subgoals = reverse gs
-                                    , var = v
-                                    , elims = reverse es }]
-      mkelim (Impl l tau) gs es =
-          mkelim tau ((reverse l) ++ gs) (replicate (length l) EApp)
-      mkelim (And l) gs es =
-          concatMap (\(tau, k) -> mkelim tau gs (EProj k:es)) (zip l [0..])
+instance (PConstraints c a, PGenerator p a) =>
+    Grammar SearchOpts (DTerm c p) (Nonterminal a) where
+  expand _ (Nonterminal ctx (PAtom i a)) = expandAtom ctx i a
+  expand _ (Nonterminal ctx (PImpl es tau)) = [expandImpl ctx es tau]
+  expand _ (Nonterminal ctx (PAnd cs)) = [expandAnd ctx cs]
+  expand _ (Nonterminal ctx (POr ds)) = expandOr ctx ds
 
-data Context = Context {
-      lastBindingNum :: Int
-    , elimAtom :: IntMap [Elim]
-    , elimDisj :: [Elim]
+instance (PConstraints c a, PGenerator p a) => Search.Proof SearchOpts (PTerm c p a) where
+    refine g = if soRefineAll g then refineAll g else refineFirst g
+    final _ x = dtHolesNum x == 0
+    prune _ x =
+        case prune (dtConstraints x) of
+          Just c' -> Just $! x{ dtConstraints = c' }
+          Nothing -> Nothing
+
+search :: (Ord a, PConstraints c a, PGenerator p a) =>
+          SearchOpts -> c -> PFormula a -> [p]
+search opts c x = map (\x -> dtFill x []) (Search.search opts (startPTerm c x))
+
+--------------------------------------------------------------------------------------
+
+data Nonterminal a = Nonterminal {
+      context :: !(Context a)
+    , goal :: !(PFormula a)
     }
 
-updateContext :: Context -> Elim -> Context
-updateContext ctx e =
+type PTerm c p a = DTerm c p (Nonterminal a)
+
+mkPTerm :: PConstraints c a => Context a -> [PFormula a] -> c -> PFill p -> PTerm c p a
+mkPTerm ctx holes c fill = DTerm {
+                             dtSize = 1
+                           , dtHolesNum = length holes
+                           , dtHoles = map (Nonterminal ctx) holes
+                           , dtFill = fill
+                           , dtConstraints = c
+                           }
+
+startPTerm :: PConstraints c a => c -> PFormula a -> PTerm c p a
+startPTerm c x = mkPTerm emptyContext [x] c head
+
+mkConstraint :: PConstraints c a => a -> Elim a -> Maybe c
+mkConstraint x e =
     case target e of
-      Atom i -> ctx{ elimAtom = newElimAtom }
-          where
-            newElimAtom =
-                case IntMap.lookup i (elimAtom ctx) of
-                  Just l -> IntMap.insert i (e:l) (elimAtom ctx)
-                  Nothing -> IntMap.insert i [e] (elimAtom ctx)
-      _ -> ctx{ elimDisj = e : elimDisj ctx }
+      PAtom _ y -> addConstraint mempty x y
+      _ -> Just mempty
 
-extendContext :: Context -> [Elim] -> Context
-extendContext ctx es =
-    (foldl updateContext ctx es){ lastBindingNum = lastBindingNum ctx + 1 }
+applyElimAtom :: (PConstraints c a, PGenerator p a) =>
+                 Context a -> a -> Elim a -> Maybe (PTerm c p a)
+applyElimAtom ctx a e =
+    case mkConstraint a e of
+      Just c -> Just $! mkPTerm ctx (subgoals e) c (fillElimAtom ctx e)
+      Nothing -> Nothing
 
-data Nonterminal = Nonterminal !Context !Formula
-
-type PTerm = Grammar.DTerm ProofTerm Nonterminal
-type PFill = [ProofTerm] -> ProofTerm
-
-mkPTerm :: Context -> [Formula] -> PFill -> PTerm
-mkPTerm ctx holes fill = Grammar.DTerm {
-                           Grammar.dtSize = 1
-                         , Grammar.dtHolesNum = length holes
-                         , Grammar.dtHoles = map (Nonterminal ctx) holes
-                         , Grammar.dtFill = fill
-                         }
-
-fillElimAtom :: Context -> Elim -> PFill
-fillElimAtom ctx e l = mkargs (app (Var (lastBindingNum ctx - var e))) (elims e) l []
-    where
-      mkargs h [] l acc = h (reverse acc)
-      mkargs h (EApp:es) (x:l) acc = mkargs h es l (x:acc)
-      mkargs h (EProj k:es) l acc = mkargs (app (Proj k (h (reverse acc)))) es l []
-      app x [] = x
-      app x l = App x l
-
-applyElimAtom :: Context -> Elim -> PTerm
-applyElimAtom ctx e = mkPTerm ctx (subgoals e) (fillElimAtom ctx e)
-
-expandAtom :: Context -> Int -> [PTerm]
-expandAtom ctx i =
+expandAtom :: (PConstraints c a, PGenerator p a) =>
+              Context a -> Int -> a -> [PTerm c p a]
+expandAtom ctx i a =
     case IntMap.lookup i (elimAtom ctx) of
-      Just l -> map (applyElimAtom ctx) l
+      Just l -> mapMaybe (applyElimAtom ctx a) l
       Nothing -> []
 
-fillImpl :: Int -> PFill
-fillImpl n [x] = iterate Lam x !! n
-
-expandImpl :: Context -> [Formula] -> Formula -> PTerm
-expandImpl ctx antecedents succedent = mkPTerm ctx' [succedent] (fillImpl $! n)
+expandImpl :: (PConstraints c a, PGenerator p a) =>
+              Context a -> [[Elim a]] -> PFormula a -> PTerm c p a
+expandImpl ctx antecedents succedent =
+    mkPTerm ctx' [succedent] mempty (fillImpl ctx' $! n)
     where
       n = length antecedents
-      elims = map (uncurry mkElim) (zip [lastBindingNum ctx + 1..] antecedents)
+      elims = map (\(v,es) -> map (\e -> e{var = v}) es) $
+              zip [lastPrfBinderNum ctx + 1..] antecedents
       ctx' = foldl extendContext ctx elims
 
-fillAnd :: PFill
-fillAnd = Tuple
+expandAnd :: (PConstraints c a, PGenerator p a) =>
+             Context a -> [PFormula a] -> PTerm c p a
+expandAnd ctx conjuncts = mkPTerm ctx conjuncts mempty (fillAnd ctx)
 
-expandAnd :: Context -> [Formula] -> PTerm
-expandAnd ctx conjuncts = mkPTerm ctx conjuncts fillAnd
+expandDisj :: (PConstraints c a, PGenerator p a) =>
+              Context a -> Int -> PFormula a -> PTerm c p a
+expandDisj ctx i tau = mkPTerm ctx [tau] mempty (fillDisj ctx i)
 
-fillDisj :: Int -> PFill
-fillDisj i [x] = Inj i x
-
-expandDisj :: Context -> Int -> Formula -> PTerm
-expandDisj ctx i tau = mkPTerm ctx [tau] (fillDisj i)
-
-expandOr :: Context -> [Formula] -> [PTerm]
+expandOr :: (PConstraints c a, PGenerator p a) =>
+            Context a -> [PFormula a] -> [PTerm c p a]
 expandOr ctx disjuncts =
     map (uncurry (expandDisj ctx)) (zip [0..] disjuncts)
-
-newtype PGrammar = PGrammar Int
-
-instance Grammar.Grammar PGrammar (Grammar.DTerm ProofTerm) Nonterminal where
-    expand g (Nonterminal ctx (Atom i)) = expandAtom ctx i
-    expand g (Nonterminal ctx (Impl as tau)) = [expandImpl ctx as tau]
-    expand g (Nonterminal ctx (And cs)) = [expandAnd ctx cs]
-    expand g (Nonterminal ctx (Or ds)) = expandOr ctx ds

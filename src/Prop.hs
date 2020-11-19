@@ -1,7 +1,10 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Prop where
 {-
    Intuitionistic propositional logic: formulas and proof terms
 -}
+
+import Logic
 
 data Formula = Atom Int
              | Impl [Formula] Formula
@@ -41,3 +44,57 @@ compressFormulaRoot x = x
 
 compressFormula :: Formula -> Formula
 compressFormula = mapFormula compressFormulaRoot
+
+toPFormula :: Formula -> PFormula ()
+toPFormula (Atom i) = PAtom i ()
+toPFormula (Impl as tau) = PImpl (map (toElim 0) as) (toPFormula tau)
+toPFormula (And as) = PAnd (map toPFormula as)
+toPFormula (Or as) = POr (map toPFormula as)
+
+-- | 'toElim v tau' creates the list of eliminator chains associated
+-- with the declaration (Var v) : tau
+toElim :: Int -> Formula -> [Elim ()]
+toElim v (Impl gs (Atom i)) = [Elim { target = PAtom i ()
+                                       , subgoals = map toPFormula gs
+                                       , var = v
+                                       , elims = []
+                                       , exVarsNum = 0 }]
+toElim v (Impl gs (Or l)) = [Elim { target = POr (map toPFormula l)
+                                  , subgoals = map toPFormula gs
+                                  , var = v
+                                  , elims = []
+                                  , exVarsNum = 0 }]
+toElim v tau = mkelim tau [] []
+    where
+      mkelim :: Formula -> [PFormula ()] -> [Eliminator] -> [Elim ()]
+      mkelim tau@(Atom _) gs es = [Elim { target = toPFormula tau
+                                        , subgoals = reverse gs
+                                        , var = v
+                                        , elims = reverse es
+                                        , exVarsNum = 0 }]
+      mkelim tau@(Or _) gs es = [Elim { target = toPFormula tau
+                                      , subgoals = reverse gs
+                                      , var = v
+                                      , elims = reverse es
+                                      , exVarsNum = 0 }]
+      mkelim (Impl l tau) gs es =
+          mkelim tau (reverse (map toPFormula l) ++ gs) (replicate (length l) EApp)
+      mkelim (And l) gs es =
+          concatMap (\(tau, k) -> mkelim tau gs (EProj k:es)) (zip l [0..])
+
+instance PGenerator ProofTerm () where
+    fillElimAtom ctx e l =
+        let h = Var (lastPrfBinderNum ctx - var e) in
+        if elims e == [] then
+            app h l
+        else
+            mkargs (app h) (elims e) l []
+        where
+          mkargs h [] l acc = h (reverse acc)
+          mkargs h (EApp:es) (x:l) acc = mkargs h es l (x:acc)
+          mkargs h (EProj k:es) l acc = mkargs (app (Proj k (h (reverse acc)))) es l []
+          app x [] = x
+          app x l = App x l
+    fillImpl ctx n [x] = iterate Lam x !! n
+    fillAnd ctx = Tuple
+    fillDisj ctx i [x] = Inj i x
