@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 module Logic where
 {-
    Generic logic for IPL-based proof search
@@ -28,6 +28,15 @@ class PFiller p => PGenerator p a where
     -- eliminator subgoals are at the front of the holes list, the
     -- remaining holes correspond to case branches
     fillElimDisj :: Int -> Elim a -> PFill p
+
+instance PFiller () where
+    fillImpl _ _ = ()
+    fillAnd _ = ()
+    fillDisj _ _ = ()
+
+instance PGenerator () a where
+    fillElimAtom _ _ _ = ()
+    fillElimDisj _ _ _ = ()
 
 -- | Formulas: 'a' is the type of atoms
 data PFormula a = PAtom Int a
