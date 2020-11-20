@@ -46,7 +46,7 @@ refineFirst g p =
 data DTerm c a b = DTerm {
       dtSize :: !Int
     , dtHolesNum :: !Int
-    , dtHoles :: [b]
+    , dtHoles :: ![b] -- TODO: should this be lazy?
     , dtFill :: [a] -> a
     , dtConstraints :: c
     }
