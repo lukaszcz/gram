@@ -82,11 +82,6 @@ toElim tau = mkelim tau [] []
       mkelim (And l) gs es =
           concatMap (\(tau, k) -> mkelim tau gs (EProj k:es)) (zip l [0..])
 
-instance PFiller ProofTerm where
-    fillImpl n l = Lam n (head l)
-    fillAnd = Tuple
-    fillDisj i l = Inj i (head l)
-
 mkElimArgs :: ProofTerm -> [Eliminator] -> [ProofTerm] -> ProofTerm
 mkElimArgs h elims l =
     if elims == [] then
@@ -100,6 +95,11 @@ mkElimArgs h elims l =
       mkargs h (EProj k:es) l acc = mkargs (app (Proj k (h (reverse acc)))) es l []
       app x [] = x
       app x l = App x l
+
+instance PFiller ProofTerm where
+    fillImpl n l = Lam n (head l)
+    fillAnd = Tuple
+    fillDisj i l = Inj i (head l)
 
 instance PGenerator ProofTerm () where
     fillElimAtom lastBinder e = mkElimArgs (Var (lastBinder - var e)) (elims e)
