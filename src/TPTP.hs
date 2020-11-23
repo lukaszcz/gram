@@ -1,4 +1,4 @@
-module TPTP(parse, parseText, parseHandle, parseFile, FormulaSig(..)) where
+module TPTP(parse, parseText, parseHandle, parseFile, FormulaSig(..), TPTPState(..)) where
 {-|
   Conversion from the TPTP format
 -}

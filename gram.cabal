@@ -16,7 +16,7 @@ extra-source-files:  CHANGELOG.md
 
 executable gram
   main-is:             Main.hs
-  other-modules:       Utils Search Grammar Logic Logic.Search TPTP Prop
+  other-modules:       Utils Search Grammar Logic Logic.Search TPTP Prop Prop.TPTP
   -- other-extensions:
   ghc-options:         -W -Werror -Wno-unused-top-binds
   build-depends:       base >=4.12,

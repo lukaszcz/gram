@@ -42,7 +42,9 @@ instance PGenerator () a where
 data PFormula a = PAtom Int a
                 | PImpl [[Elim a]] (PFormula a)
                 | PAnd [PFormula a]
+                -- ^ top is represented by @PAnd []@
                 | POr [PFormula a]
+                -- ^ bottom is represented by @POr []@
                 | PEx Int (PFormula a)
 
 -- | The eliminator chain target is an atom or a disjunction

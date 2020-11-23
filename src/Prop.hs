@@ -9,7 +9,9 @@ import Logic
 data Formula = Atom Int
              | Impl [Formula] Formula
              | And [Formula]
+             -- ^ top is represented by @And []@
              | Or [Formula]
+             -- ^ bottom is represented by @Or []@
 
 -- | Proof terms in zero-based de Bruijn representation
 data ProofTerm = Var Int
