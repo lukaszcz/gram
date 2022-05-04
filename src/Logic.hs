@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 module Logic where
-{-
-   Generic logic for IPL-based proof search
--}
+{-|
+  Generic logic for IPL-based proof search
+ -}
 
 class Prunable c where
     prune :: c -> Maybe c
@@ -45,19 +45,17 @@ data PFormula a = PAtom Int a
                 -- ^ top is represented by @PAnd []@
                 | POr [PFormula a]
                 -- ^ bottom is represented by @POr []@
-                | PEx Int (PFormula a)
 
 -- | The eliminator chain target is an atom or a disjunction
 data ETarget a = TAtom Int a | TDisj [[Elim a]]
 
--- | Eliminator chain
+-- | Eliminator chain (spine)
 data Elim a = Elim {
       target :: !(ETarget a)
     , subgoals :: ![PFormula a]
     , var :: !Int
     , elims :: ![Eliminator]
     -- ^ 'elims' optimisation: empty list means only EApp
-    , exVarsNum :: !Int
     }
 
 data Eliminator = EApp | EProj Int deriving Eq

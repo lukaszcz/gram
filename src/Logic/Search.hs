@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
-module Logic.Search (SearchOpts, defaultSearchOpts, search) where
-{-
-   Generic proof search based on IPL proof search
--}
+module Logic.Search (SearchOpts(..), defaultSearchOpts, search) where
+{-|
+  Generic proof search based on IPL proof search
+ -}
 
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
@@ -33,7 +33,6 @@ instance (PConstraints c a, PGenerator p a) =>
   expand _ (Nonterminal _ ctx (PImpl es tau)) = [expandImpl ctx es tau]
   expand _ (Nonterminal cmd ctx (PAnd cs)) = [expandAnd cmd ctx cs]
   expand _ (Nonterminal cmd ctx (POr ds)) = expandOr cmd ctx ds
-  expand _ (Nonterminal cmd ctx (PEx n tau)) = [expandEx cmd ctx n tau]
 
 instance (PConstraints c a, PGenerator p a) => Search.Proof SearchOpts (PTerm c p a) where
     refine g = if soRefineAll g then refineAll g else refineFirst g
@@ -166,11 +165,5 @@ expandOr :: (PConstraints c a, PGenerator p a) =>
             PCmd -> Context a -> [PFormula a] -> [PTerm c p a]
 expandOr cmd ctx disjuncts = l1 ++ l2
     where
-      l1 = map (uncurry (expandDisj ctx)) (zip [0..] disjuncts)
+      l1 = zipWith (expandDisj ctx) [0..] disjuncts
       l2 = applyAllElimDisj cmd ctx (POr disjuncts)
-
-expandEx :: (PConstraints c a, PGenerator p a) =>
-            PCmd -> Context a -> Int -> PFormula a -> PTerm c p a
-expandEx cmd ctx n tau = mkPTerm holes mempty head
-    where
-      holes = [Nonterminal cmd ctx{lastExBinderNum = lastExBinderNum ctx + n} tau]
